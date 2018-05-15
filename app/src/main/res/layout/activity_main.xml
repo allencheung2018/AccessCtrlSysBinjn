@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<android.support.constraint.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@mipmap/main_default_bg"
+    tools:context="com.binjn.accessctrlsysbinjn.MainActivity">
+
+    <FrameLayout
+        android:id="@+id/local_video_view_container"
+        android:layout_width="640dp"
+        android:layout_height="360dp"
+        android:foreground="@mipmap/head"
+        android:visibility="visible">
+
+        <SurfaceView
+            android:id="@+id/surfaceView2"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+    </FrameLayout>
+
+    <ImageView
+        android:id="@+id/imageView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="TODO"
+        android:scaleType="fitXY"
+        app:srcCompat="@android:drawable/btn_star_big_on" />
+
+    <VideoView
+        android:id="@+id/videoView"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <SurfaceView
+        android:id="@+id/surfaceView3"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
+    <ProgressBar
+        android:id="@+id/progressBar3"
+        style="@style/CustomProgressStyle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:max="16"
+        android:progress="1"
+        android:secondaryProgress="2"
+        android:visibility="invisible"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.9" />
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:alpha="0.8"
+        android:background="@color/colorPrimaryDark"
+        app:layout_constraintBottom_toBottomOf="parent">
+
+        <TextView
+            android:id="@+id/textView2"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerVertical="true"
+            android:layout_marginLeft="5dp"
+            android:text="TextView"
+            android:textColor="@android:color/white" />
+
+        <TextView
+            android:id="@+id/textView"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerVertical="true"
+            android:layout_marginRight="4dp"
+            android:layout_toStartOf="@+id/editText"
+            android:text="请输入房号："
+            android:textColor="@android:color/background_light"
+            android:textSize="18sp" />
+
+        <EditText
+            android:id="@+id/editText"
+            android:layout_width="160dp"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:layout_alignParentTop="false"
+            android:layout_centerVertical="true"
+            android:autoText="false"
+            android:background="@null"
+            android:ems="10"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:hint="*删除、#确认"
+            android:inputType="number"
+            android:textColor="@android:color/background_light"
+            android:textColorHint="@android:color/darker_gray"
+            android:textSize="18sp" />
+
+        <TextView
+            android:id="@+id/textView3"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerHorizontal="true"
+            android:layout_centerVertical="true"
+            android:text="星期五"
+            android:textColor="@android:color/background_light"
+            android:textSize="22sp" />
+    </RelativeLayout>
+
+</android.support.constraint.ConstraintLayout>
