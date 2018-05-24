@@ -67,6 +67,7 @@ public class LogFile {
     public void release(){
         try {
             fileOutputStream.close();
+            instance = null;
         } catch (IOException e) {
             e.printStackTrace();
         }

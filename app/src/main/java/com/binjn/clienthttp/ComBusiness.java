@@ -54,6 +54,10 @@ public class ComBusiness {
 
     public ComBusiness(Context context){
         this.context = context;
+        idMac = SharePrefUtil.getString(context, SharePrefUtil.MACHINEID, "");
+        strLog = "ComBusiness init idMac:"+idMac;
+        Log.i(mTAG, strLog);
+        LogFile.getInstance().saveMessage(strLog);
     }
 
     public void getToken(String timeStamp){
@@ -1099,5 +1103,27 @@ public class ComBusiness {
         if (result == null){
             return ;
         }
+    }
+
+    public void uploadDeviceVersionInfo(String av, String rv, String di){
+        String str = "设备版本号信息上传:" + av +","+rv + ","+di;
+        Log.i(mTAG, str);
+        LogFile.getInstance().saveMessage(str);
+        if (!isTokenValid()){
+            getToken(null);
+        }
+
+        HashMap<String, String> headerMap = new HashMap<>();
+        headerMap.put("token", tokenBinjn);
+        HashMap<String, String> paramsMap = new HashMap<>();
+        paramsMap.put("appversion", av);
+        paramsMap.put("romversion", rv);
+        paramsMap.put("deviceinfo", di);
+        String result = OkHttpUtil.postDataSync(urlBinjn+"v1/lock/"+idMac+"/version",
+                paramsMap, headerMap);
+
+        str = "设备版本号信息上传 返回："+result;
+        Log.i(mTAG, str);
+        LogFile.getInstance().saveMessage(str);
     }
 }

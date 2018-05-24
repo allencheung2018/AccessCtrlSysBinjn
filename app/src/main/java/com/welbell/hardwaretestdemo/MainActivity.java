@@ -16,20 +16,22 @@ public class MainActivity {
     //class
     private OnHardwreCallBack onHardwreCallBack;
     private String str = "";
+    private String version = "0";
 
     private HardwareSupport hardwareResource = new HardwareSupport();
 
     public MainActivity(String pkgName, String className){
         //获取系统版本号
-        String version = "0";
-//        try {
-//            version = hardwareResource.getHardWareVersion();
-//        } catch (Exception e){
-//            Log.e(mTAG, "getHardWareVersion error:"+e.toString());
-//            e.printStackTrace();
-//        }
+
+        try {
+            version = hardwareResource.getHardWareVersion();
+        } catch (Exception e){
+            Log.e(mTAG, "getHardWareVersion error:"+e.toString());
+            e.printStackTrace();
+        }
         str = "HardWareVersion:"+version;
         Log.i(mTAG,str);
+        LogFile.getInstance().saveMessage(str);
 //        hardwareResource.delDaemonServer();
         hardwareResource.addAPPtoDaemon(pkgName, className);
         hardwareResource.addEventCallBack(new HardWareCallBack());
@@ -191,5 +193,9 @@ public class MainActivity {
     public interface OnHardwreCallBack
     {
         public void onInfrared(int act);
+    }
+
+    public String getVersion() {
+        return version;
     }
 }

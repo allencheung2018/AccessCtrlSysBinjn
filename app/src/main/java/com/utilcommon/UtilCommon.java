@@ -1,6 +1,11 @@
 package com.utilcommon;
 
+import android.app.ActivityManager;
+import android.content.Context;
 import android.graphics.Bitmap;
+import android.os.Environment;
+import android.os.StatFs;
+import android.text.format.Formatter;
 import android.util.Base64;
 import android.util.Log;
 
@@ -42,6 +47,8 @@ import java.util.Set;
 import java.util.TimeZone;
 import java.util.TooManyListenersException;
 import java.util.TreeMap;
+
+import static android.content.Context.ACTIVITY_SERVICE;
 
 /**
  * Created by xiaomi2 on 2017/12/7 0007.
@@ -956,4 +963,79 @@ public class UtilCommon {
             LogFile.getInstance().saveMessage(str);
         }
     }
+
+    /**
+     * 获取总内存
+     * @param context
+     * @return
+     */
+    public static String getTotalRam(Context context){//GB
+        String path = "/proc/meminfo";
+        String firstLine = null;
+        int totalRam = 0 ;
+        try{
+            java.io.FileReader fileReader = new java.io.FileReader(path);
+            java.io.BufferedReader br = new java.io.BufferedReader(fileReader,8192);
+            firstLine = br.readLine().split("\\s+")[1];
+            br.close();
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+        if(firstLine != null){
+            totalRam = (int)Math.ceil((new Float(Float.valueOf(firstLine) / (1024 * 1024)).doubleValue()));
+        }
+
+        return totalRam + "GB";//返回1GB/2GB/3GB/4GB
+    }
+
+    /**
+     * 获得机身可用内存
+     *
+     * @return
+     */
+    public static String getRomAvailableSize(Context context) {
+        File path = Environment.getDataDirectory();
+        StatFs stat = new StatFs(path.getPath());
+        long blockSize = stat.getBlockSize();
+        long availableBlocks = stat.getAvailableBlocks();
+        return Formatter.formatFileSize(context, blockSize * availableBlocks);
+    }
+
+    /**
+     * 获得机身内存总大小
+     *
+     * @return
+     */
+    public static String getRomTotalSize(Context context) {
+        File path = Environment.getDataDirectory();
+        StatFs stat = new StatFs(path.getPath());
+        long blockSize = stat.getBlockSize();
+        long totalBlocks = stat.getBlockCount();
+        return Formatter.formatFileSize(context, blockSize * totalBlocks);
+    }
+
+    public static String getRomInfo(Context context){
+        File path = Environment.getDataDirectory();
+        StatFs stat = new StatFs(path.getPath());
+        long blockSize = stat.getBlockSize();
+        long totalBlocks = stat.getBlockCount();
+        long availableBlocks = stat.getAvailableBlocks();
+        return Formatter.formatFileSize(context, blockSize * availableBlocks) + "/"
+                + Formatter.formatFileSize(context, blockSize * totalBlocks);
+    }
+
+    /**
+     * 获取内存情况
+     * @param context
+     */
+    public static String getMemoryInfo(Context context){
+        ActivityManager am = (ActivityManager) context.getSystemService(ACTIVITY_SERVICE);
+        ActivityManager.MemoryInfo outInfo = new ActivityManager.MemoryInfo();
+        am.getMemoryInfo(outInfo );
+        long availMem = outInfo.availMem;
+        long totalMem = outInfo.totalMem;
+        return Formatter.formatFileSize(context, availMem) + "/"
+                + Formatter.formatFileSize(context, totalMem);
+    }
+
 }

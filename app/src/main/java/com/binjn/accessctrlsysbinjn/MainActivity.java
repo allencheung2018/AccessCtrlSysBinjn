@@ -73,15 +73,19 @@ import com.hdos.idCardUartDevice.publicSecurityIDCardLib;
 import com.seetatech.toolchainv3.ToolChain;
 import com.utilcommon.LogFile;
 import com.utilcommon.NetworkUtil;
+import com.utilcommon.PlayVoiceTip;
 import com.utilcommon.SharePrefUtil;
 import com.utilcommon.TTSUtils;
 import com.utilcommon.UtilCommon;
 import com.utilcommon.WindowBar;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
@@ -177,15 +181,17 @@ public class MainActivity extends AppCompatActivity {
     ExecutorService pushMessageSingleThread = Executors.newSingleThreadExecutor();
     ExecutorService showDateSingleThread = Executors.newSingleThreadExecutor();
     ExecutorService controlLightsSingleThread = Executors.newSingleThreadExecutor();
-    ExecutorService playVoiceSingleThread = Executors.newSingleThreadExecutor();
     ExecutorService playWaitAudioSingleThread = Executors.newSingleThreadExecutor();
     ExecutorService scheduledThread = Executors.newCachedThreadPool();
     private Timer timerHeart = new Timer();
     ConnectionChangeReceiver netWorkStateReceiver;
     PushMessageBroadcastReceiver pushMessageReceiver;
+    private PlayVoiceTip playVoiceTip = new PlayVoiceTip();
     //var
-    private String versionSys = "Ver 0.0.0";
-    private int indexVid = 1;
+    private String appVersion = "Ver 0.0.0";            //app版本
+    private String romVersion = "";                     //系统ROM版本号
+    private String deviceInfo = "";                     //设备信息
+    private String dataTimeShow = "";
     private boolean isCameraRun = false;                //摄像头运行标志
     private boolean flagCallOwenr = false;              //呼叫业主事件标志
     private boolean flagJoinChannel = false;            //加入通话通道标志
@@ -198,7 +204,7 @@ public class MainActivity extends AppCompatActivity {
     private int typeInput = 0;                          //输入类型0-房号、1-密码
     private boolean isPlaying = false;
     private boolean flagReadIdCard = false;             //停止读取身份证标志
-    private boolean flagFirstRun = true;
+    private boolean flagFirstRun = true;                //首次启动运行标志
     private int numADSrc = 0;
     int numPicTaken0 = 0, numPicTaken1=0;               //拍照片数量
     private String namePackage;
@@ -210,6 +216,7 @@ public class MainActivity extends AppCompatActivity {
     private float compared = 0.45f;
     private int faceImageSize = 100;
     private float roll=15, pitch=15, yaw=15;
+    private Map<String, String> adVolMap = new HashMap<>();
     private int delayReadIdCard = 100;                  //ms
     private byte[] name = new byte[32];
     private byte[] sex = new byte[6];
@@ -334,11 +341,11 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         try {
-            versionSys = this.getPackageManager().getPackageInfo(this.getPackageName(), 0).versionName;
+            appVersion = this.getPackageManager().getPackageInfo(this.getPackageName(), 0).versionName;
         } catch (PackageManager.NameNotFoundException e) {
             e.printStackTrace();
         }
-        strLog += versionSys;
+        strLog += appVersion;
         LogFile.getInstance().saveMessage(strLog);
         //
         int memClass = ((ActivityManager)getSystemService(Context.ACTIVITY_SERVICE)).getMemoryClass();
@@ -371,45 +378,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void initTest(){
-        //BOARD 主板
-String phoneInfo = "BOARD: " + android.os.Build.BOARD;
-phoneInfo += ", BOOTLOADER: " + android.os.Build.BOOTLOADER;
-//BRAND 运营商
-phoneInfo += ", BRAND: " + android.os.Build.BRAND;
-phoneInfo += ", CPU_ABI: " + android.os.Build.CPU_ABI;
-phoneInfo += ", CPU_ABI2: " + android.os.Build.CPU_ABI2;
 
-//DEVICE 驱动
-phoneInfo += ", DEVICE: " + android.os.Build.DEVICE;
-//DISPLAY Rom的名字 例如 Flyme 1.1.2（魅族rom） &nbsp;JWR66V（Android nexus系列原生4.3rom）
-phoneInfo += ", DISPLAY: " + android.os.Build.DISPLAY;
-//指纹
-phoneInfo += ", FINGERPRINT: " + android.os.Build.FINGERPRINT;
-//HARDWARE 硬件
-phoneInfo += ", HARDWARE: " + android.os.Build.HARDWARE;
-phoneInfo += ", HOST: " + android.os.Build.HOST;
-phoneInfo += ", ID: " + android.os.Build.ID;
-//MANUFACTURER 生产厂家
-phoneInfo += ", MANUFACTURER: " + android.os.Build.MANUFACTURER;
-//MODEL 机型
-phoneInfo += ", MODEL: " + android.os.Build.MODEL;
-phoneInfo += ", PRODUCT: " + android.os.Build.PRODUCT;
-phoneInfo += ", RADIO: " + android.os.Build.RADIO;
-phoneInfo += ", RADITAGSO: " + android.os.Build.TAGS;
-phoneInfo += ", TIME: " + android.os.Build.TIME;
-phoneInfo += ", TYPE: " + android.os.Build.TYPE;
-phoneInfo += ", USER: " + android.os.Build.USER;
-//VERSION.RELEASE 固件版本
-phoneInfo += ", VERSION.RELEASE: " + android.os.Build.VERSION.RELEASE;
-phoneInfo += ", VERSION.CODENAME: " + android.os.Build.VERSION.CODENAME;
-//VERSION.INCREMENTAL 基带版本
-phoneInfo += ", VERSION.INCREMENTAL: " + android.os.Build.VERSION.INCREMENTAL;
-//VERSION.SDK SDK版本
-phoneInfo += ", VERSION.SDK: " + android.os.Build.VERSION.SDK;
-phoneInfo += ", VERSION.SDK_INT: " + android.os.Build.VERSION.SDK_INT;
-
-        Log.d(mTAG, phoneInfo);
-        Log.i(mTAG, " ram:"+getTotalRam(this));
 
 //        File video=new File(mianDir + "video/"+3+".mp4");
 //        Log.i(mTAG, "video:"+video.exists());
@@ -421,25 +390,6 @@ phoneInfo += ", VERSION.SDK_INT: " + android.os.Build.VERSION.SDK_INT;
 //        getADSrc(null);
 //        getManageablePersons();
 //        testUpload();
-    }
-
-public static String getTotalRam(Context context){//GB
-        String path = "/proc/meminfo";
-        String firstLine = null;
-        int totalRam = 0 ;
-        try{
-            java.io.FileReader fileReader = new java.io.FileReader(path);
-            java.io.BufferedReader br = new java.io.BufferedReader(fileReader,8192);
-            firstLine = br.readLine().split("\\s+")[1];
-            br.close();
-        }catch (Exception e){
-            e.printStackTrace();
-        }
-        if(firstLine != null){
-            totalRam = (int)Math.ceil((new Float(Float.valueOf(firstLine) / (1024 * 1024)).doubleValue()));
-        }
-
-        return totalRam + "GB";//返回1GB/2GB/3GB/4GB
     }
 
     private void initView() {
@@ -468,7 +418,7 @@ public static String getTotalRam(Context context){//GB
         versionEt = (TextView) findViewById(R.id.textView2);
         dateEt = (TextView) findViewById(R.id.textView3);
         dateEt.setText(UtilCommon.getDateTimeWeek());
-        versionEt.setText(versionSys);
+        versionEt.setText(appVersion);
         cameraViewContainer = (FrameLayout)findViewById(R.id.local_video_view_container);
         cameraViewContainer.setVisibility(View.GONE);
         cameraSfView = (SurfaceView) findViewById(R.id.surfaceView2);
@@ -543,8 +493,19 @@ public static String getTotalRam(Context context){//GB
         showDateSingleThread.execute(new Runnable() {
             @Override
             public void run() {
+                String str, key;
                 do {
                     try {
+                        dataTimeShow = UtilCommon.getDateTimeWeek();
+                        int p = dataTimeShow.lastIndexOf(":");
+                        key = dataTimeShow.substring(p-5, p);
+                        if (adVolMap.containsKey(key)){
+                            float vol = Float.parseFloat(adVolMap.get(key))*0.1f;
+                            videoADMediaPlayer.setVolume(vol, vol);
+                            str = "当前时间:"+key + " 设置广告音量:"+vol;
+                            Log.i(mTAG, str);
+                            LogFile.getInstance().saveMessage(str);
+                        }
                         Thread.sleep(1000);
                         handler.sendEmptyMessage(DATESHOW);
                     }
@@ -605,14 +566,27 @@ public static String getTotalRam(Context context){//GB
         LogFile.getInstance().saveMessage(str);
     }
 
+    /**
+     * 离开视频通话
+     */
     private void leaveChannel() {
-        Log.d(mTAG, "leaveChannel:"+mRtcEngine);
-        LogFile.getInstance().saveMessage("leaveChannel:"+mRtcEngine);
-        if (mRtcEngine != null) {
-            mRtcEngine.stopPreview();
-            mRtcEngine.leaveChannel();
-//            mRtcEngine = null;
-        }
+        scheduledThread.execute(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Thread.sleep(1000);
+                    Log.d(mTAG, "leaveChannel:"+mRtcEngine);
+                    LogFile.getInstance().saveMessage("leaveChannel:"+mRtcEngine);
+                    if (mRtcEngine != null) {
+                        mRtcEngine.stopPreview();
+                        mRtcEngine.leaveChannel();
+                    }
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        });
+
     }
 
     private void initCloudChannel(){
@@ -700,7 +674,12 @@ public static String getTotalRam(Context context){//GB
                     LogFile.getInstance().saveMessage(str);
                     UtilCommon.copyFile(LogFile.nameLogFile, LogFile.backupLogFile);
                     file.delete();
+                    synchronized (LogFile.getInstance()){
+                        LogFile.getInstance().release();
+                    }
+                    comBusiness.saveLogfile(LogFile.backupLogFile);
                 }
+                //删除30天前的文件夹
                 long oldtime = new Date().getTime() - (long) 30*24*3600*1000;
                 try {
                     str = UtilCommon.longToString(oldtime, "yyyyMMdd");
@@ -755,19 +734,16 @@ public static String getTotalRam(Context context){//GB
     public void requestMacId(){
         String str = "";
 //        ComBusiness.idMac = SharePrefUtil.getString(this, SharePrefUtil.MACHINEID, "");
-        str = "门禁机ID："+ ComBusiness.idMac;
-        if (ComBusiness.idMac.equals("")){
             scheduledThread.execute(new Runnable() {
                 @Override
                 public void run() {
-                    if (comBusiness.registerMachine(addrMac) != null){
+                    comBusiness.registerMachine(addrMac);
+                    if(flagFirstRun) {
                         handler.sendEmptyMessage(SUCCESSMACID);
                     }
                 }
             });
-        }else {
-            handler.sendEmptyMessage(SUCCESSMACID);
-        }
+        str = "获取门禁机ID："+ ComBusiness.idMac;
         Log.i(mTAG, str);
         LogFile.getInstance().saveMessage(str);
     }
@@ -809,7 +785,7 @@ public static String getTotalRam(Context context){//GB
                         msg.what = SUCCESSMANAGEABLEPERSONS;
                         handler.sendMessage(msg);
                     }
-                    else        //无需下载特征值进入
+                    else        //无需下载特征值进入更新管理人员本地数据库
                     {
                         msg.what = SUCCESSBATCHFEATUREFILE;
                         msg.obj = null;
@@ -897,7 +873,10 @@ public static String getTotalRam(Context context){//GB
                     }
                 }
                 //获取广告资源是否成功都进入下一流程
-                handler.sendEmptyMessage(SUCCESSGETADSRC);
+                Message msg = new Message();
+                msg.what = SUCCESSGETADSRC;
+                msg.arg1 = size;
+                handler.sendMessage(msg);
             }
         });
     }
@@ -1194,6 +1173,7 @@ public static String getTotalRam(Context context){//GB
                             featDb.close();
                         }
                     }
+                    handler.sendEmptyMessage(SUCCESSPERSONDATABASE);
                 }
             });
         }
@@ -1329,15 +1309,40 @@ public static String getTotalRam(Context context){//GB
                         roll = (float) jsonObject.getDouble("roll");
                         pitch = (float) jsonObject.getDouble("pitch");
                         yaw = (float) jsonObject.getDouble("yaw");
+                        FaceDetRec.IceLocator = jsonObject.getString("iceServer");
+                        String adVol = jsonObject.getString("adVolume");
+                        setADVolume(adVol);
+                        String ttsObj = jsonObject.getString("tts");
+                        playVoiceTip.setTipInfo(ttsObj);
                     } catch (JSONException e) {
                         e.printStackTrace();
                     }
-                    handler.sendEmptyMessage(SUCCESSSCOREPASS);
-                }else {
+                }
+                if (flagFirstRun){
                     handler.sendEmptyMessage(SUCCESSSCOREPASS);
                 }
             }
         });
+    }
+
+    /**
+     * 解析配置音量
+     * @param adVol
+     */
+    private void setADVolume(String adVol) {
+        try {
+            JSONArray jsonArray = new JSONArray(adVol);
+            adVolMap.clear();
+            for (int i=0;i<jsonArray.length();i++){
+                JSONObject jsonObject = (JSONObject) jsonArray.get(i);
+                String key = jsonObject.getString("time");
+                int value = jsonObject.getInt("volume");
+                adVolMap.put(key, String.valueOf(value));
+                Log.d(mTAG, "i="+i + " key:"+key + " volume:"+value);
+            }
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
     }
 
     /**
@@ -1520,6 +1525,7 @@ public static String getTotalRam(Context context){//GB
                         Log.i(mTAG, str);
                         LogFile.getInstance().saveMessage(str);
                         if (action.equals("add") || action.equals("update") || action.equals("delete")){
+                            flagFirstRun = false;
                             msg.what = PUSHMESSAGEAD;
                             handler.sendMessage(msg);
                         }
@@ -1543,7 +1549,7 @@ public static String getTotalRam(Context context){//GB
                                 LogFile.getInstance().saveMessage("远程开门 error:"+e.toString());
                             }
                         }else if (action.equals("reboot")){
-                            hardwareMain.restartMachine();
+                            handler.sendEmptyMessage(NEEDREBOOTMACHINE);
                         }
                         break;
                     case 10503:         //临时密码
@@ -1584,11 +1590,20 @@ public static String getTotalRam(Context context){//GB
                         }
                         break;
                     case 10506:
-                        str = str + " 上传日志推送接：" + action;
+                        str = str + " 上传日志推送：" + action;
                         Log.i(mTAG, str);
                         LogFile.getInstance().saveMessage(str);
                         if (action.equals("upload")){
                             handler.sendEmptyMessage(NEEDUPLOADLOGFILE);
+                        }
+                        break;
+                    case 10507:     //门禁设备配置信息
+                        str = str + " 门禁设备配置信息推送：" + action;
+                        Log.i(mTAG, str);
+                        LogFile.getInstance().saveMessage(str);
+                        if (action.equals("update")){
+                            flagFirstRun = false;
+                            handler.sendEmptyMessage(SUCCESSMACID);
                         }
                         break;
                     default:
@@ -1647,7 +1662,6 @@ public static String getTotalRam(Context context){//GB
     private static final int SUCCESSSCOREPASS = 127;
     private static final int NEEDUPLOADPERSON = 128;
     private static final int SUCCESSUPLOADFEATURE = 129;        //上传注册信息
-    private static final int FAILEDUPLOADFEATURE = 161;
     private static final int PHOTOTAKEN = 130;                  //拍照存储照片
     private static final int SUCCESSRECOGNIZER = 131;
     private static final int FINISHRECOGNIZER = 132;
@@ -1661,6 +1675,7 @@ public static String getTotalRam(Context context){//GB
     private static final int PLAYCONTINUE = 150;
     private static final int PLAYCOMPLETE = 151;
 
+    private static final int FAILEDUPLOADFEATURE = 161;
     private static final int PUSHMESSAGERECEIVE = 162;
     private static final int PUSHMESSAGEPERSON = 163;
     private static final int PUSHMESSAGEAD = 164;
@@ -1671,9 +1686,9 @@ public static String getTotalRam(Context context){//GB
     private static final int TIMELIVECHAT = 169;
     private static final int SUCCESSREADCARD = 170;
     private static final int FAILREADCARD = 171;
-    private static final int SUCCESSVERIFYCARD = 172;       //
+    private static final int OPENDOORWITHIDCARD = 172;      //身份证开门
     private static final int FAILEDVERIFYCARD = 173;        //
-    private static final int IDCARDVERIFYWITHPERSON = 174;  //
+    private static final int IDCARDVERIFYWITHPERSON = 174;  //身份证已注册且有网络
     private static final int OPENDOORBYREMOTE = 180;
     private static final int RECEIVEDTEMPPWD = 181;
     private static final int VALIDPASSWORD = 182;
@@ -1681,6 +1696,7 @@ public static String getTotalRam(Context context){//GB
     private static final int WRONGPASSWORD = 184;
     private static final int OFFLINEREMOTEUSER = 185;
     private static final int NEEDUPLOADLOGFILE = 186;
+    private static final int NEEDREBOOTMACHINE = 187;
 
     @SuppressLint("HandlerLeak")
     private Handler handler = new Handler(){
@@ -1694,8 +1710,7 @@ public static String getTotalRam(Context context){//GB
                 case FAILINTERNET:
                     break;
                 case FINISHNETTOKEN:
-                    flagFirstRun = true;
-                    if (ComBusiness.idMac.equals("") || mPersonInfoMap.size()==0) {
+                    if ( mPersonInfoMap==null) {
                         faceDetRec.renewServicePrx();
 //                        initCloudChannel();
                         requestMacId();
@@ -1708,7 +1723,7 @@ public static String getTotalRam(Context context){//GB
 
                     break;
                 case DATESHOW:
-                    dateEt.setText(UtilCommon.getDateTimeWeek());
+                    dateEt.setText(dataTimeShow);
                     break;
                 case INFRAREDDEDECT:
                     int act = msg.arg1;
@@ -1744,24 +1759,29 @@ public static String getTotalRam(Context context){//GB
                     break;
                 case STILLHAVEPERSON:
                     takePictureDataWithCamera1();
-//                    takePictureData();
+                    takePictureData();
                     break;
                 case SUCCESSMANAGEABLEPERSONS:
                     getBatchFeatureFile((List<ManageablePersonInfo>) msg.obj);
                     break;
                 case SUCCESSPERSONDATABASE:
-
+                    uploadVersionInfo();
                     break;
                 case SUCCESSSCOREPASS:
                     getADSrc(null);
                     break;
                 case SUCCESSGETADSRC:
-                    //重新查询广告数据库
-                    csrPlaylist = playListDb.rawQuery("select * from " + PlaylistDatabaseHelper.TABLE_NAME, null);
-                    if (!isPlaying){
-                        startPlay();
+                    if (msg.arg1 > 0) {
+                        playVoiceTip.playVoice("get_adlist");
+                        //重新查询广告数据库
+                        csrPlaylist = playListDb.rawQuery("select * from " + PlaylistDatabaseHelper.TABLE_NAME, null);
+                        if (!isPlaying) {
+                            startPlay();
+                        }
+                        strLog = "更新播放本地广告数据库 ：" + csrPlaylist.getCount();
+                    }else {
+                        strLog = "获取广告列表失败";
                     }
-                    strLog = "更新播放本地广告数据库 ："+csrPlaylist.getCount();
                     Log.i(mTAG, strLog);
                     LogFile.getInstance().saveMessage(strLog);
                     if (flagFirstRun) {
@@ -1772,7 +1792,10 @@ public static String getTotalRam(Context context){//GB
                     sendFaceFeatureFiles((List<PersonRegFilesInfo>) msg.obj);
                     break;
                 case SUCCESSBATCHFEATUREFILE:
-                    updateLocalDatabase((List<ManageablePersonInfo>) msg.obj, msg.arg1);
+                    if (msg.arg1==2 && mPersonInfoMap.size()>0){
+                        playVoiceTip.playVoice("get_persons_success");
+                        updateLocalDatabase((List<ManageablePersonInfo>) msg.obj, msg.arg1);
+                    }
                     break;
                 case SUCCESSRECOGNIZER:
                     openLockWithPulse();
@@ -1781,7 +1804,7 @@ public static String getTotalRam(Context context){//GB
                     strLog = "识别成功"+ " 欢迎您";
                     Log.i(mTAG, strLog);
                     LogFile.getInstance().saveMessage(strLog);
-                    TTSUtils.getInstance().speak(strLog);
+                    playVoiceTip.playVoice("rec_success");
                     Toast.makeText(MainActivity.this, strLog, Toast.LENGTH_SHORT).show();
                     break;
                 case FINISHRECOGNIZER:
@@ -1789,7 +1812,6 @@ public static String getTotalRam(Context context){//GB
                             faceDetRec.getFpStrangerPicNir());
                     /** 识别成功不关闭窗口 */
                     if (Float.intBitsToFloat(msg.arg1)>matchScorePass && !flagCallOwenr) {
-                        backupDeleteUserData();
                         delayTakePhoto(4);
                         //延时启动摄像头
                     }else {
@@ -1840,7 +1862,7 @@ public static String getTotalRam(Context context){//GB
                     stopPreviewFaceRec(true);
                     needUploadPersons();
                     strLog = "注册成功";
-                    TTSUtils.getInstance().speak(strLog);
+                    playVoiceTip.playVoice("register_success");
                     Toast.makeText(MainActivity.this, strLog, Toast.LENGTH_SHORT).show();
                     //延时后打开摄像窗口
                     runOnUiThread(new Runnable() {
@@ -1862,7 +1884,7 @@ public static String getTotalRam(Context context){//GB
                     cameraViewContainer.setLayoutParams(layoutParams);
                     progressBar.setVisibility(View.GONE);
                     strLog = "注册未完成，请重新尝试";
-                    TTSUtils.getInstance().speak(strLog);
+                    playVoiceTip.playVoice("register_unsuccess");
                     Log.i(mTAG, strLog);
                     LogFile.getInstance().saveMessage(strLog);
                     Toast.makeText(MainActivity.this, strLog, Toast.LENGTH_SHORT).show();
@@ -1896,7 +1918,6 @@ public static String getTotalRam(Context context){//GB
                     getManageablePersons();
                     break;
                 case PUSHMESSAGEAD:
-                    flagFirstRun = false;
                     getADSrc(null);
                     break;
                 case SUCCESSDIALMOBILE:
@@ -1916,43 +1937,26 @@ public static String getTotalRam(Context context){//GB
                     Toast.makeText(MainActivity.this, "呼叫业主已经连通", Toast.LENGTH_SHORT).show();
                     break;
                 case TIMEOUTLIVECHAT:
-                    connectedLiveChat = false;
                     audioTrackplayer.pause();
-                    leaveChannel();
+                    connectedLiveChat = false;
                     if (msg.arg1 == 1){
                         TTSUtils.getInstance().speak("呼叫等待超时");
                     }else if (msg.arg1 == 2){
-//                        TTSUtils.getInstance().speak("对方离开对话");
-                        playVoiceInThread("对方离开通话", 2);
+                        playVoiceTip.playVoice("lock_video_hangup");
                     }
                     editText.setText("");
                     Toast.makeText(MainActivity.this, (String)msg.obj, Toast.LENGTH_SHORT).show();
+                    leaveChannel();
                     break;
                 case TIMELIVECHAT:
                     Toast.makeText(MainActivity.this, "通话还剩 "+msg.arg1+" 秒结束", Toast.LENGTH_SHORT).show();
                     break;
                 case SUCCESSREADCARD:
-                    saveIdCardInfo(msg.obj);
-                    if (msg.arg1 == 1){
-                        strLog = "证件已授权";
-                    }else if (msg.arg1 == 0){
-                        strLog = "证件未授权";
-                        TTSUtils.getInstance().speak(strLog);
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                try {
-                                    Thread.sleep(500);
-                                } catch (InterruptedException e) {
-                                    e.printStackTrace();
-                                }
-                                readIDCard();
-                            }
-                        });
-                    }
+                    strLog = playVoiceTip.playVoice("idcard_success");
                     Log.i(mTAG, strLog);
                     LogFile.getInstance().saveMessage(strLog);
                     Toast.makeText(MainActivity.this, strLog, Toast.LENGTH_SHORT).show();
+                    saveIdCardInfo(msg.obj);
                     break;
                 case FAILREADCARD:
                     Log.d(mTAG, " FAILREADCARD flagReadIdCard:"+flagReadIdCard);
@@ -1960,14 +1964,33 @@ public static String getTotalRam(Context context){//GB
                         readIDCard();
                     }
                     break;
+                case FAILEDVERIFYCARD:
+                    strLog = playVoiceTip.playVoice("idcard_unauthorized");
+                    Toast.makeText(MainActivity.this, strLog, Toast.LENGTH_SHORT).show();
+                    Log.i(mTAG, strLog);
+                    LogFile.getInstance().saveMessage(strLog);
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                Thread.sleep(500);
+                            } catch (InterruptedException e) {
+                                e.printStackTrace();
+                            }
+                            readIDCard();
+                        }
+                    });
+                    break;
                 case IDCARDVERIFYWITHPERSON:
                     if (msg.arg1 == 1) {
+                        strLog = playVoiceTip.playVoice("register_begin");
                         layoutParams = (ConstraintLayout.LayoutParams) cameraViewContainer.getLayoutParams();
                         layoutParams.width = FrameLayout.LayoutParams.MATCH_PARENT;
                         layoutParams.height = FrameLayout.LayoutParams.MATCH_PARENT;
                         cameraViewContainer.setLayoutParams(layoutParams);
                         progressBar.bringToFront();
                     } else {
+                        playVoiceTip.playVoice("lock_idcheck_fail");
                         if (flagReadIdCard) {
                             runOnUiThread(new Runnable() {
                                 @Override
@@ -1982,7 +2005,10 @@ public static String getTotalRam(Context context){//GB
                             });
                         }
                     }
-                    TTSUtils.getInstance().speak((String) msg.obj);
+                    break;
+                case OPENDOORWITHIDCARD:
+                    openLockWithPulse();
+                    playVoiceTip.playVoice("lock_idcard_open");
                     break;
                 case OPENDOORBYREMOTE:
                     /** 在远程开门记录未上传前不允许再次调用 */
@@ -1993,6 +2019,7 @@ public static String getTotalRam(Context context){//GB
                     }
                     capturePhoto();
                     openLockWithPulse();
+                    playVoiceTip.playVoice("lock_remote_open");
                     Toast.makeText(MainActivity.this,"远程开门成功",Toast.LENGTH_LONG).show();
                     break;
                 case RECEIVEDTEMPPWD:
@@ -2006,6 +2033,7 @@ public static String getTotalRam(Context context){//GB
                         flagOpenDoorPassword = true;
                     }
                     openLockWithPulse();
+                    playVoiceTip.playVoice("lock_tmppsw_open");
                     editText.setText("");
                     Toast.makeText(MainActivity.this,"密码开门成功",Toast.LENGTH_LONG).show();
                     break;
@@ -2020,15 +2048,48 @@ public static String getTotalRam(Context context){//GB
                     Toast.makeText(MainActivity.this,"无效密码",Toast.LENGTH_LONG).show();
                     break;
                 case OFFLINEREMOTEUSER:
-                    leaveChannel();
                     connectedLiveChat = false;
+                    leaveChannel();
                     break;
                 case NEEDUPLOADLOGFILE:
                     uploadLogfile();
                     break;
+                case NEEDREBOOTMACHINE:
+                    rebootMachine(2);
+                    break;
             }
         }
     };
+
+    private void rebootMachine(final int delay) {
+        playVoiceTip.playVoice("lock_reboot");
+        scheduledThread.execute(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Thread.sleep(delay*1000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                hardwareMain.restartMachine();
+            }
+        });
+    }
+
+    /**
+     * 设备版本号信息上传
+     */
+    private void uploadVersionInfo() {
+        scheduledThread.execute(new Runnable() {
+            @Override
+            public void run() {
+                romVersion = hardwareMain.getVersion() + " " + android.os.Build.DISPLAY;
+                deviceInfo = "Ram:"+UtilCommon.getMemoryInfo(MainActivity.this)
+                        + ",Rom:"+UtilCommon.getRomInfo(MainActivity.this);
+                comBusiness.uploadDeviceVersionInfo(appVersion, romVersion, deviceInfo);
+            }
+        });
+    }
 
     /**
      * 保存身份证读取记录(照片以文件形式上传)
@@ -2129,20 +2190,6 @@ public static String getTotalRam(Context context){//GB
                     delta = System.currentTimeMillis() - st;
                 }
                 hardwareMain.controlDoorLock(false);//hardwareMain.closeLock();
-            }
-        });
-    }
-
-    public void playVoiceInThread(final String speech, final int delay){
-        playVoiceSingleThread.execute(new Runnable() {
-            @Override
-            public void run() {
-                TTSUtils.getInstance().speak(speech);
-                try {
-                    Thread.sleep(delay*1000);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
             }
         });
     }
@@ -2321,16 +2368,18 @@ public static String getTotalRam(Context context){//GB
             public void run() {
                 boolean flagToken = true;
                 String str = comBusiness.heartbeatMachine(flagToken);
-                //重新获取token则重新更新广告和人员列表
+                //重新获取macId则重新更新广告和人员列表
                 if (str!=null && flagToken==false){
                     flagFirstRun = true;
-                    handler.sendEmptyMessage(SUCCESSGETADSRC);
+                    handler.sendEmptyMessage(SUCCESSSCOREPASS);
                 }
                 str = "设备心跳返回服务器时间："+str + " flagToken:"+flagToken;
                 Log.i(mTAG, str);
                 LogFile.getInstance().saveMessage(str);
             }
         });
+        //
+        backupDeleteUserData();
     }
 
     public void uploadLogfile(){
@@ -2385,6 +2434,7 @@ public static String getTotalRam(Context context){//GB
                 }
                 try {
                     camera1.startPreview();
+                    camera0.startPreview();
                 } catch (Exception e){
                     str = "luanchCameraView surfaceChanged error:"+e.toString();
                     Log.e(mTAG, str);
@@ -2392,8 +2442,7 @@ public static String getTotalRam(Context context){//GB
                     e.printStackTrace();
                 }
                 takePictureDataWithCamera1();
-//                camera0.startPreview();
-//                takePictureData();
+                takePictureData();
                 flagReadIdCard = true;
                 readIDCard();
             }
@@ -2491,19 +2540,15 @@ public static String getTotalRam(Context context){//GB
             camera0.takePicture(null, null, new Camera.PictureCallback() {
                 @Override
                 public void onPictureTaken(byte[] bytes, Camera camera) {
+                    Camera.Size size = camera.getParameters().getPictureSize();
                     numPicTaken0 += 1;
-                    String str = "camera0 onPictureTaken:"+numPicTaken0 + " raw pic data="+bytes.length;
+                    String str = "camera0 onPictureTaken:"+numPicTaken0 + " raw pic data="+bytes.length
+                            + " width="+size.width + " height="+size.height;
                     Log.i(mTAG, str);
                     LogFile.getInstance().saveMessage(str);
                     if (bytes.length > 0) {
-//                        faceDetRec.saveFaceDataNir(bytes);
+                        faceDetRec.saveFaceDataNir(bytes);
                     }
-                    try {
-                        camera.startPreview();
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-
                 }
             });
         }catch (Exception e){
@@ -2533,11 +2578,6 @@ public static String getTotalRam(Context context){//GB
                     if (bytes.length > 0) {
                         faceDetRec.recognizerFace(bytes, size.width, size.height);
                     }
-                    try {
-//                        camera.startPreview();
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
 
                 }
             });
@@ -2555,7 +2595,7 @@ public static String getTotalRam(Context context){//GB
     public void callOwenr(String num){
         if (flagCallOwenr){
             Toast.makeText(this, "正在呼叫请等待", Toast.LENGTH_SHORT).show();
-            TTSUtils.getInstance().speak("正在呼叫请等待");
+            playVoiceTip.playVoice("lock_call");
             return;
         }else {
             flagCallOwenr = true;
@@ -2828,7 +2868,9 @@ public static String getTotalRam(Context context){//GB
 
                     //
                     Message msg = new Message();
+                    msg.what = SUCCESSREADCARD;
                     msg.obj = params;
+                    handler.sendMessage(msg);
                     try {
                         featDb = fDbHelper.getReadableDatabase();
                     } catch (Exception e){
@@ -2843,9 +2885,6 @@ public static String getTotalRam(Context context){//GB
                     String pid = null;
                     //是否在管理人员列表
                     if (flag){
-                        msg.what = SUCCESSREADCARD;
-                        msg.arg1 = 1;
-                        handler.sendMessage(msg);
                         pid = cursor.getString(cursor.getColumnIndex(FeatDatabaseHelper.PERSON_ID));
                         str = no + " 身份证已授权" + " pid:" + pid + " nation:"+na
                                 + " effectDate:"+vab  + " expireDate:"+vae + " isNetwork:"+isNetwork;
@@ -2875,12 +2914,10 @@ public static String getTotalRam(Context context){//GB
                             str = "当前无网络："+isNetwork + " 临时允许开门:"+pid;
                             Log.i(mTAG, str);
                             LogFile.getInstance().saveMessage(str);
-                            openLockWithPulse();
+                            handler.sendEmptyMessage(OPENDOORWITHIDCARD);
                         }
                     }else {
-                        msg.what = SUCCESSREADCARD;
-                        msg.arg1 = 0;
-                        handler.sendMessage(msg);
+                        handler.sendEmptyMessage(FAILEDVERIFYCARD);
                     }
                     cursor.close();
                     featDb.close();
@@ -3024,7 +3061,7 @@ public static String getTotalRam(Context context){//GB
                     if (networkInfo.getType() == ConnectivityManager.TYPE_ETHERNET
                             || networkInfo.getType() == ConnectivityManager.TYPE_WIFI){
                         isNetwork = true;
-                        TTSUtils.getInstance().speak(str);
+                        playVoiceTip.playVoice("network_ok");
                         Toast.makeText(context, str, Toast.LENGTH_SHORT).show();
                         str = str + ":"+networkInfo.getType();
                         Log.i(TAG, str);
@@ -3035,7 +3072,7 @@ public static String getTotalRam(Context context){//GB
             }else {
                 isNetwork = false;
                 str = "当前网络异常";
-                TTSUtils.getInstance().speak(str);
+                playVoiceTip.playVoice("network_disconnect");
                 Toast.makeText(context, str, Toast.LENGTH_SHORT).show();
                 str = str + ":" + networkInfo;
                 Log.e(TAG, str);

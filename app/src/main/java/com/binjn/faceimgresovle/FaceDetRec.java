@@ -36,6 +36,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 
+import FaceAlg.FaceAlgSvr;
 import FaceAlg.FaceAlgSvrPrx;
 import FaceAlg.FaceAlgSvrPrxHelper;
 import FaceAlg.FaceInfo;
@@ -69,6 +70,8 @@ public class FaceDetRec {
     private static int indexPhoto = 1;
     private static enum enumFlow{IDCARDFlow,REGISTERFlow,RECFlow};
     private static final int numLostPerson = 12;
+    public static String IceLocator = "FaceAlgSvr:default -h fes.binjn.com -p 13000";
+    private final int IceInvocationTimeout = 5000;
     //class
     private VIPLFaceDetectorUtils viplFDU;
     private VIPLPointDetectorUtils viplPDU;
@@ -129,7 +132,6 @@ public class FaceDetRec {
     }
 
     public void initData(){
-//        faceAlgSvrPrx = getServicePrx();
         viplFDU = MainActivity.viplFaceDetectorUtils;
         viplPDU = MainActivity.viplPointDetectorUtils;
         viplFRNU = MainActivity.viplFaceRecognizerUtils;
@@ -152,9 +154,6 @@ public class FaceDetRec {
     public void initControl(){
         //detThread.start();
     }
-
-    private String IceLocator = "FaceAlgSvr:default -h 111.230.249.92 -p 13000";
-    private int IceInvocationTimeout = 5000;
 
     /**
      * 连接识别服务获取代理类
@@ -448,7 +447,7 @@ public class FaceDetRec {
             @Override
             public void run() {
                 String str = "";
-                if (hasFace){
+                if (true){
                     try {
                         picNirData = new byte[data.length];
                         System.arraycopy(data, 0, picNirData, 0, data.length);
