@@ -92,17 +92,22 @@ public class MainApplication extends Application {
     }
 
     private void checkAliasIsExist() {
+        strLog = pushService.getDeviceId();
+        Log.i(mTAG, "DeviceId:"+strLog);
         pushService.listAliases(new CommonCallback() {
             @Override
             public void onSuccess(String s) {
                 strLog = "别名 === " + s;
                 if(TextUtils.isEmpty(s)){
                     //添加别名
-                    strLog = strLog + "需要注册别名";
+                    strLog = strLog + " 需要注册别名";
                     handler.sendEmptyMessage(ALIASNOTEXIST);
-                }else {
+                }else if (!s.equals(ComBusiness.idMac)){
+                    strLog = strLog + " 需要删除别名";
+                    handler.sendEmptyMessage(DELETEALIAS);
+                } else {
                     //别名已存在，不添加
-                    strLog = strLog + "别名存在";
+                    strLog = strLog + " 别名存在";
                 }
                 Log.i(mTAG, strLog);
                 LogFile.getInstance().saveMessage(strLog);
@@ -118,6 +123,8 @@ public class MainApplication extends Application {
     private void addAliaName() {
         String id = ComBusiness.idMac;
         Log.d(mTAG, "id:"+id);
+        if (id.equals(""))
+            return;
         pushService.addAlias(id, new CommonCallback() {
             @Override
             public void onSuccess(String s) {
@@ -131,8 +138,23 @@ public class MainApplication extends Application {
         });
     }
 
+    private void deleteAlias(){
+        pushService.removeAlias(null, new CommonCallback() {
+            @Override
+            public void onSuccess(String s) {
+                handler.sendEmptyMessage(ALIASNOTEXIST);
+            }
+
+            @Override
+            public void onFailed(String s, String s1) {
+
+            }
+        });
+    }
+
     private final int SUCCESSINIT = 100;
     private final int ALIASNOTEXIST = 101;
+    private final int DELETEALIAS = 102;
     @SuppressLint("HandlerLeak")
     private Handler handler = new Handler() {
         @Override
@@ -143,6 +165,9 @@ public class MainApplication extends Application {
                     break;
                 case ALIASNOTEXIST:
                     addAliaName();
+                    break;
+                case DELETEALIAS:
+                    deleteAlias();
                     break;
             }
         }

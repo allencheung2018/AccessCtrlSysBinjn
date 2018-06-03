@@ -60,7 +60,8 @@ public class ComBusiness {
         LogFile.getInstance().saveMessage(strLog);
     }
 
-    public void getToken(String timeStamp){
+    public int getToken(String timeStamp){
+        int code = -1;
         String str = "获取新 Token";
         HashMap<String,String> params = new HashMap<>();
 
@@ -89,28 +90,34 @@ public class ComBusiness {
             str = "获取token失败：" + result;
             Log.e(mTAG, str);
             LogFile.getInstance().saveMessage(str);
-            return;
+            return -1;
         }
 
         JSONObject jsonObject = null;
         try {
             jsonObject = new JSONObject(result);
-            tokenBinjn = jsonObject.getString("token");
-            str = jsonObject.getString("expires_in");
-            str = "获取token:"+tokenBinjn + " token过期剩余时间:"+str +"s";
-            Log.i(mTAG, str);
-            LogFile.getInstance().saveMessage(str);
-            timeTolen = ts;
-            SharePrefUtil.saveString(context, SharePrefUtil.TOKENBINJN, tokenBinjn);
-            SharePrefUtil.saveString(context, SharePrefUtil.TIMETOKEN, timeTolen);
-            //
-
+            code = jsonObject.getInt("code");
+            if (code == 0) {
+                tokenBinjn = jsonObject.getString("token");
+                str = jsonObject.getString("expires_in");
+                str = "获取token:" + tokenBinjn + " token过期剩余时间:" + str + "s";
+                Log.i(mTAG, str);
+                LogFile.getInstance().saveMessage(str);
+                timeTolen = ts;
+                SharePrefUtil.saveString(context, SharePrefUtil.TOKENBINJN, tokenBinjn);
+                SharePrefUtil.saveString(context, SharePrefUtil.TIMETOKEN, timeTolen);
+            }else if (code == 3007){
+                str = "获取token失败:" + code;
+                Log.i(mTAG, str);
+                LogFile.getInstance().saveMessage(str);
+            }
         } catch (JSONException e) {
             e.printStackTrace();
             str = "getToken:"+e.toString();
             Log.e(mTAG, str);
             LogFile.getInstance().saveMessage(str);
         }
+        return code;
     }
 
     /**
@@ -397,13 +404,13 @@ public class ComBusiness {
                 str = str + " 返回错误："+result;
                 Log.i(mTAG, str);
                 LogFile.getInstance().saveMessage(str);
-                return null;
+                return adInfos;
             }
         } catch (JSONException e) {
             e.printStackTrace();
         }
         if (jsonObject==null){
-            return null;
+            return adInfos;
         }
         int size = adInfos.size();
         str = "广告资源获取成功 数量:"+size ;
@@ -700,7 +707,7 @@ public class ComBusiness {
         }
         HashMap<String,String> paramsHeader = new HashMap<>();
         paramsHeader.put("token", tokenBinjn);
-        String result = OkHttpUtil.postUploadSingleFile(urlBinjn+"v1/upload/idcard/file", params,
+        String result = OkHttpUtil.postUploadSingleFile(urlBinjn+"v1/upload/idcard/file/"+idMac, params,
                 paramsHeader, fPath, "file", FILE_TYPE_IMAGE);
         str = str + " 返回:" + result;
         Log.i(mTAG, str);
@@ -1034,18 +1041,24 @@ public class ComBusiness {
      * @param flagToken
      * @return
      */
-    public String heartbeatMachine(boolean flagToken){
-        String str = "设备心跳接口:"+idMac + " flagToken:"+flagToken;
+    public String heartbeatMachine(byte[] flagToken){
+        String str = "设备心跳接口:"+idMac + " flagToken:"+flagToken[0];
         Log.i(mTAG, str);
         LogFile.getInstance().saveMessage(str);
         //token无效或门禁机ID为空则则重新获取
+//        if (!isTokenValid()){
+//            if(getToken(null) == 0){
+//                flagToken[0] = 1;
+//            }
+//        }
+        //只有门禁机ID为空则则重新获取
         if (idMac.equals("")){
-            flagToken = false;
-            registerMachine(MainActivity.addrMac);
-        }else if (!isTokenValid()){
-            getToken(null);
+            str = registerMachine(MainActivity.addrMac);
+            if (str != null){
+                flagToken[0] = 1;
+            }
         }
-
+        Log.d(mTAG, "flagToken:"+flagToken[0]);
         String result = null;
         if (!idMac.equals("")) {
             result = OkHttpUtil.getDatasync(urlBinjn+"security/heartbeat/"+idMac, null, null);

@@ -181,15 +181,8 @@ public class FaceDetRec {
         Log.d(mTAG, "renewServicePrx:"+faceAlgSvrPrx);
     }
 
-    public void setPhotoDataInQueue(byte[] data){
-        Log.i(mTAG, "get photo data:"+data.length + " queue:"+queue.size());
-        synchronized (queue){
-            queue.offer(data);
-        }
-    }
     //
     private BitmapFactory.Options opts = new BitmapFactory.Options();
-
     public void recognizerFace(final byte[] jpegData, final int picWidth, final int picHeight){
         managePhotoData.execute(new Runnable() {
             @Override
@@ -306,8 +299,8 @@ public class FaceDetRec {
                                         || Math.abs(faceInfos[selected].roll)>roll || Math.abs(faceInfos[selected].pitch)>pitch
                                         || Math.abs(faceInfos[selected].yaw)>yaw
                                         || faceInfos[selected].x<5 || faceInfos[selected].y<5
-                                        || (faceInfos[selected].x+faceInfos[selected].width)>picWidth
-                                        || (faceInfos[selected].y+faceInfos[selected].height)>picHeight){
+                                        || (faceInfos[selected].x+faceInfos[selected].width)>(picWidth-5)
+                                        || (faceInfos[selected].y+faceInfos[selected].height)>(picHeight-5)){
                                     Log.d(mTAG, "照片不符合注册要求");
                                     LogFile.getInstance().saveMessage("照片不符合注册要求");
                                     onFaceDetRecCallBack.onRegistering(indexPicRegister);
@@ -872,6 +865,7 @@ public class FaceDetRec {
     */
 
     public float calcSimVisPicIdCard_Stranger(String fPath){
+        Log.i(mTAG, "p1:"+fPath + " p2:"+fpStrangerPic);
         byte[] data1 = UtilCommon.readFeatureFileInfos(fPath);
         byte[] data2 = UtilCommon.readFeatureFileInfos(fpStrangerPic);
         if (data1!=null && data2!=null && data1.length>0 && data2.length>0) {
@@ -1091,5 +1085,25 @@ public class FaceDetRec {
 
     public String getFpStrangerPicNir() {
         return fpStrangerPicNir;
+    }
+
+    public void setMatchScorePass(float matchScorePass) {
+        this.matchScorePass = matchScorePass;
+    }
+
+    public void setRoll(float roll) {
+        this.roll = roll;
+    }
+
+    public void setPitch(float pitch) {
+        this.pitch = pitch;
+    }
+
+    public void setYaw(float yaw) {
+        this.yaw = yaw;
+    }
+
+    public void setFaceImageSize(int faceImageSize) {
+        this.faceImageSize = faceImageSize;
     }
 }

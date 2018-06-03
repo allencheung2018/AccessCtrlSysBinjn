@@ -79,7 +79,7 @@
             android:layout_centerVertical="true"
             android:layout_marginRight="4dp"
             android:layout_toStartOf="@+id/editText"
-            android:text="请输入房号："
+            android:text="请输入房号或手机号："
             android:textColor="@android:color/background_light"
             android:textSize="18sp" />
 

@@ -43,26 +43,34 @@ public class PlayVoiceTip {
             voiceTipMap.put("network_disconnect", jsonObject.getString("network_disconnect"));
             voiceTipMap.put("lock_video_hangup", jsonObject.getString("lock_video_hangup"));
             voiceTipMap.put("lock_idcheck_fail", jsonObject.getString("lock_idcheck_fail"));        //人证比对失败
+            voiceTipMap.put("lock_tmppsw_error", jsonObject.getString("lock_tmppsw_error"));
+            voiceTipMap.put("lock_callnum_error", jsonObject.getString("lock_callnum_error"));          //
+            voiceTipMap.put("lock_call_phone_errorr", jsonObject.getString("lock_call_phone_errorr"));  //
         } catch (JSONException e) {
             e.printStackTrace();
             return;
         }
     }
 
-    public String playVoice(final String key){
+    public String playVoice(final String key, String text){
         if (voiceTipMap==null || voiceTipMap.size()==0){
             return null;
         }
-
-        final String tip = voiceTipMap.get(key);
+        String tip = null;
+        if (key != null) {
+             tip = voiceTipMap.get(key);
+        }else {
+            tip = text;
+        }
         final int len = tip.length();
         String str = "key:"+key + " 语音："+tip + " len="+len;
         Log.i(mTAG, str);
         LogFile.getInstance().saveMessage(str);
+        final String finalTip = tip;
         playControlST.execute(new Runnable() {
             @Override
             public void run() {
-                TTSUtils.getInstance().speak(tip);
+                TTSUtils.getInstance().speak(finalTip);
                 try {
                     Thread.sleep((len*1000)/3);
                 } catch (InterruptedException e) {

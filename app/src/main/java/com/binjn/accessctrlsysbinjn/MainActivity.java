@@ -3,6 +3,7 @@ package com.binjn.accessctrlsysbinjn;
 import android.accessibilityservice.AccessibilityService;
 import android.annotation.SuppressLint;
 import android.app.ActivityManager;
+import android.app.AlertDialog;
 import android.app.Application;
 import android.content.BroadcastReceiver;
 import android.content.ContentValues;
@@ -102,6 +103,8 @@ import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.LogRecord;
 
 import FaceAlg.Image;
@@ -153,6 +156,7 @@ public class MainActivity extends AppCompatActivity {
     private EditText editText;
     private TextView versionEt, inputTip, dateEt;
     private FrameLayout cameraViewContainer;
+    private AlertDialog macDialog;
     //class
     public static VIPLFaceDetectorUtils viplFaceDetectorUtils;
     public static VIPLPointDetectorUtils viplPointDetectorUtils;
@@ -179,7 +183,7 @@ public class MainActivity extends AppCompatActivity {
     ExecutorService readCardSingleThread = Executors.newSingleThreadExecutor();
     ExecutorService uploadRecResultSingleThread = Executors.newSingleThreadExecutor();
     ExecutorService pushMessageSingleThread = Executors.newSingleThreadExecutor();
-    ExecutorService showDateSingleThread = Executors.newSingleThreadExecutor();
+    ScheduledThreadPoolExecutor showDateSingleThread = new ScheduledThreadPoolExecutor(1);
     ExecutorService controlLightsSingleThread = Executors.newSingleThreadExecutor();
     ExecutorService playWaitAudioSingleThread = Executors.newSingleThreadExecutor();
     ExecutorService scheduledThread = Executors.newCachedThreadPool();
@@ -202,6 +206,7 @@ public class MainActivity extends AppCompatActivity {
     private boolean needCatchPhoto = false;             //需要抓拍照片标志
     private boolean connectedLiveChat = false;          //呼叫连通标志
     private int typeInput = 0;                          //输入类型0-房号、1-密码
+    private int pwdTimeCount = 0;                       //输入密码界面计时
     private boolean isPlaying = false;
     private boolean flagReadIdCard = false;             //停止读取身份证标志
     private boolean flagFirstRun = true;                //首次启动运行标志
@@ -378,8 +383,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void initTest(){
-
-
 //        File video=new File(mianDir + "video/"+3+".mp4");
 //        Log.i(mTAG, "video:"+video.exists());
 //        SimpleDateFormat formatter = new SimpleDateFormat    ("yyyyMMddHHmmss");
@@ -390,6 +393,7 @@ public class MainActivity extends AppCompatActivity {
 //        getADSrc(null);
 //        getManageablePersons();
 //        testUpload();
+
     }
 
     private void initView() {
@@ -490,31 +494,24 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void showCurrentDate() {
-        showDateSingleThread.execute(new Runnable() {
+        showDateSingleThread.scheduleAtFixedRate(new Runnable() {
             @Override
             public void run() {
                 String str, key;
-                do {
-                    try {
-                        dataTimeShow = UtilCommon.getDateTimeWeek();
-                        int p = dataTimeShow.lastIndexOf(":");
-                        key = dataTimeShow.substring(p-5, p);
-                        if (adVolMap.containsKey(key)){
-                            float vol = Float.parseFloat(adVolMap.get(key))*0.1f;
-                            videoADMediaPlayer.setVolume(vol, vol);
-                            str = "当前时间:"+key + " 设置广告音量:"+vol;
-                            Log.i(mTAG, str);
-                            LogFile.getInstance().saveMessage(str);
-                        }
-                        Thread.sleep(1000);
-                        handler.sendEmptyMessage(DATESHOW);
-                    }
-                    catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                } while(true);
+                dataTimeShow = UtilCommon.getDateTimeWeek();
+                int p = dataTimeShow.lastIndexOf(":");
+                key = dataTimeShow.substring(p-5, p);
+                if (adVolMap.containsKey(key)){
+                    float vol = Float.parseFloat(adVolMap.get(key))*0.1f;
+                    videoADMediaPlayer.setVolume(vol, vol);
+                    str = "当前时间:"+key + " 设置广告音量:"+vol;
+                    Log.i(mTAG, str);
+                    LogFile.getInstance().saveMessage(str);
+                }
+                pwdTimeCount += 1;
+                handler.sendEmptyMessage(DATESHOW);
             }
-        });
+        }, 1, 1, TimeUnit.SECONDS);
     }
 
     /**
@@ -620,7 +617,10 @@ public class MainActivity extends AppCompatActivity {
                     //添加别名
                     strLog = strLog + "需要注册别名";
                     handler.sendEmptyMessage(ALIASNOTEXIST);
-                }else {
+                }else if (!s.equals(ComBusiness.idMac)){
+                    strLog = strLog + " 需要删除别名";
+                    handler.sendEmptyMessage(DELETEALIAS);
+                } else {
                     //别名已存在，不添加
                     strLog = strLog + " 别名存在";
                 }
@@ -652,6 +652,20 @@ public class MainActivity extends AppCompatActivity {
                 strLog = "addAliaName Failed-s:"+s + " s1:"+s1;
                 Log.e(mTAG, strLog);
                 LogFile.getInstance().saveMessage(strLog);
+            }
+        });
+    }
+
+    private void deleteAlias(){
+        MainApplication.pushService.removeAlias(null, new CommonCallback() {
+            @Override
+            public void onSuccess(String s) {
+                handler.sendEmptyMessage(ALIASNOTEXIST);
+            }
+
+            @Override
+            public void onFailed(String s, String s1) {
+
             }
         });
     }
@@ -709,23 +723,17 @@ public class MainActivity extends AppCompatActivity {
      * 获取门禁机Mac地址
      */
     public void getMacAddress(){
-        addrMac = SharePrefUtil.getString(this, SharePrefUtil.ADDRESSMAC, "");
-        String str = "门禁机Mac地址:" + addrMac;
-        Log.i(mTAG, str);
-        LogFile.getInstance().saveMessage(str);
-        if (addrMac.equals("")){
-            addrMac = UtilCommon.getMac();
+        String macTemp = UtilCommon.getMac();
+        String str = "获取门禁机Mac地址:" + macTemp;
+        if (macTemp != null){
+            addrMac = macTemp;
+            SharePrefUtil.saveString(this, SharePrefUtil.ADDRESSMAC, addrMac);
         }else {
-            return;
+            addrMac = SharePrefUtil.getString(this, SharePrefUtil.ADDRESSMAC, "");
         }
-        str = "获取门禁机Mac地址:"+addrMac;
+        str = str + " 使用门禁机Mac地址:" + addrMac;
         Log.i(mTAG, str);
         LogFile.getInstance().saveMessage(str);
-//        addrMac = "3af936b3e045";
-        if (addrMac == null){
-            return;
-        }
-        SharePrefUtil.saveString(this, SharePrefUtil.ADDRESSMAC, addrMac);
     }
 
     /**
@@ -737,9 +745,11 @@ public class MainActivity extends AppCompatActivity {
             scheduledThread.execute(new Runnable() {
                 @Override
                 public void run() {
-                    comBusiness.registerMachine(addrMac);
-                    if(flagFirstRun) {
-                        handler.sendEmptyMessage(SUCCESSMACID);
+                    if (flagFirstRun) {
+                        comBusiness.registerMachine(addrMac);
+                        if(!ComBusiness.idMac.equals("")) {
+                            handler.sendEmptyMessage(SUCCESSMACID);
+                        }
                     }
                 }
             });
@@ -760,10 +770,15 @@ public class MainActivity extends AppCompatActivity {
                 String str = "网络时间："+timeStamp + " ValidToken:"+flag;
                 Log.i(mTAG, str);
                 LogFile.getInstance().saveMessage(str);
+                Message msg = new Message();
                 if (!flag){
-                    comBusiness.getToken(timeStamp);
+                    int code = comBusiness.getToken(timeStamp);
+                    if (code == 3007){
+                        msg.arg1 = code;
+                    }
                 }
-                handler.sendEmptyMessage(FINISHNETTOKEN);
+                msg.what = FINISHNETTOKEN;
+                handler.sendMessage(msg);
             }
         });
     }
@@ -1292,7 +1307,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * 获取设备的识别通过阈值 - 此接口将取消
+     * 获取设备的识别通过阈值
      */
     public void getConfigMachine(){
         scheduledThread.execute(new Runnable() {
@@ -1309,7 +1324,12 @@ public class MainActivity extends AppCompatActivity {
                         roll = (float) jsonObject.getDouble("roll");
                         pitch = (float) jsonObject.getDouble("pitch");
                         yaw = (float) jsonObject.getDouble("yaw");
-                        FaceDetRec.IceLocator = jsonObject.getString("iceServer");
+                        freshFaceRecParam();
+                        String iceServer = jsonObject.getString("iceServer");
+                        if (!iceServer.equals(FaceDetRec.IceLocator)){
+                            FaceDetRec.IceLocator = iceServer;
+                            faceDetRec.renewServicePrx();
+                        }
                         String adVol = jsonObject.getString("adVolume");
                         setADVolume(adVol);
                         String ttsObj = jsonObject.getString("tts");
@@ -1323,6 +1343,14 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
+    }
+
+    private void freshFaceRecParam() {
+        faceDetRec.setMatchScorePass(matchScorePass);
+        faceDetRec.setFaceImageSize(faceImageSize);
+        faceDetRec.setRoll(roll);
+        faceDetRec.setPitch(pitch);
+        faceDetRec.setYaw(yaw);
     }
 
     /**
@@ -1538,11 +1566,14 @@ public class MainActivity extends AppCompatActivity {
                             try {
                                 jsonData = jsonObject.getJSONObject("data");
                                 pidRemoteOpenDoor = jsonData.getString("personId");
+                                long callrecId = jsonData.getLong("callrecId");
                                 str = "远程开门成功 - lockId："+jsonData.getString("lockId")
-                                    + " personId:"+pidRemoteOpenDoor;
+                                    + " personId:"+pidRemoteOpenDoor + " callrecId="+callrecId;
                                 Log.i(mTAG, str);
                                 LogFile.getInstance().saveMessage(str);
-                                handler.sendEmptyMessage(OPENDOORBYREMOTE);
+                                msg.arg1 = (int) callrecId;
+                                msg.what = OPENDOORBYREMOTE;
+                                handler.sendMessage(msg);
                             } catch (JSONException e) {
                                 e.printStackTrace();
                                 Log.e(mTAG, "远程开门:"+e.toString());
@@ -1589,6 +1620,15 @@ public class MainActivity extends AppCompatActivity {
                             flagJoinChannel = false;
                         }
                         break;
+                    case 10505:
+                        str = str + " 设备初始化推送接口：" + action;
+                        Log.i(mTAG, str);
+                        LogFile.getInstance().saveMessage(str);
+                        if (action.equals("init")){
+                            flagFirstRun = true;
+                            handler.sendEmptyMessage(SUCCESSMACID);
+                        }
+                        break;
                     case 10506:
                         str = str + " 上传日志推送：" + action;
                         Log.i(mTAG, str);
@@ -1601,9 +1641,22 @@ public class MainActivity extends AppCompatActivity {
                         str = str + " 门禁设备配置信息推送：" + action;
                         Log.i(mTAG, str);
                         LogFile.getInstance().saveMessage(str);
-                        if (action.equals("update")){
+                        if (action.equals("config")){
                             flagFirstRun = false;
                             handler.sendEmptyMessage(SUCCESSMACID);
+                        }
+                        break;
+                    case 10509:
+                        str = str + " 语音播报信息推送：" + action;
+                        Log.i(mTAG, str);
+                        LogFile.getInstance().saveMessage(str);
+                        if (action.equals("report")){
+                            try {
+                                String s = jsonObject.getString("msg");
+                                playVoiceTip.playVoice(null, s);
+                            } catch (JSONException e) {
+                                e.printStackTrace();
+                            }
                         }
                         break;
                     default:
@@ -1624,7 +1677,7 @@ public class MainActivity extends AppCompatActivity {
         strLog = "键盘事件 输入内容："+iContent;
         Log.i(mTAG, strLog);
         LogFile.getInstance().saveMessage(strLog);
-        if (iContent.length()==4 && typeInput==0){
+        if ((iContent.length()==4||iContent.length()==11) && typeInput==0){
             if (!NetworkUtil.isNetworkAvailable(this)){
                 strLog = "当前网络不可用";
                 Log.i(mTAG, strLog);
@@ -1647,8 +1700,9 @@ public class MainActivity extends AppCompatActivity {
     private static final int FAILINTERNET = 101;
     private static final int FINISHNETTOKEN = 102;              //检查网络时间和token
     private static final int ALIASNOTEXIST = 103;
-    private static final int FAILSERVERS = 104;
-    private static final int DATESHOW = 105;
+    private static final int DELETEALIAS = 104;
+    private static final int FAILSERVERS = 105;
+    private static final int DATESHOW = 106;
     private static final int INFRAREDDEDECT = 110;
 
     private static final int SUCCESSREADIDCARD = 111;           //身份证读取成功
@@ -1710,6 +1764,13 @@ public class MainActivity extends AppCompatActivity {
                 case FAILINTERNET:
                     break;
                 case FINISHNETTOKEN:
+                    if (msg.arg1 == 3007){
+                        AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+                        builder.setTitle("设备未注册");
+                        builder.setMessage(""+addrMac);
+                        macDialog = builder.show();
+                        break;
+                    }
                     if ( mPersonInfoMap==null) {
                         faceDetRec.renewServicePrx();
 //                        initCloudChannel();
@@ -1719,11 +1780,18 @@ public class MainActivity extends AppCompatActivity {
                 case ALIASNOTEXIST:
                     addAliaName();
                     break;
+                case DELETEALIAS:
+
+                    break;
                 case FAILSERVERS:
 
                     break;
                 case DATESHOW:
                     dateEt.setText(dataTimeShow);
+                    if (pwdTimeCount==30 && typeInput==1){
+                        typeInput = 0;
+                        inputTip.setText("请输入房号或手机号：");
+                    }
                     break;
                 case INFRAREDDEDECT:
                     int act = msg.arg1;
@@ -1747,8 +1815,9 @@ public class MainActivity extends AppCompatActivity {
                     }
                     break;
                 case SUCCESSMACID:
+                    versionEt.setText("设备编号:"+ComBusiness.idMac + "(v"+appVersion+")");
                     getConfigMachine();
-//                    checkAliasIsExist();
+                    checkAliasIsExist();
                     break;
                 case LOSTPERSON:
                     stopPreviewFaceRec(false);
@@ -1758,8 +1827,8 @@ public class MainActivity extends AppCompatActivity {
                     }
                     break;
                 case STILLHAVEPERSON:
-                    takePictureDataWithCamera1();
                     takePictureData();
+                    takePictureDataWithCamera1();
                     break;
                 case SUCCESSMANAGEABLEPERSONS:
                     getBatchFeatureFile((List<ManageablePersonInfo>) msg.obj);
@@ -1769,10 +1838,13 @@ public class MainActivity extends AppCompatActivity {
                     break;
                 case SUCCESSSCOREPASS:
                     getADSrc(null);
+                    if (macDialog!=null && macDialog.isShowing()){
+                        macDialog.dismiss();
+                    }
                     break;
                 case SUCCESSGETADSRC:
                     if (msg.arg1 > 0) {
-                        playVoiceTip.playVoice("get_adlist");
+                        playVoiceTip.playVoice("get_adlist", null);
                         //重新查询广告数据库
                         csrPlaylist = playListDb.rawQuery("select * from " + PlaylistDatabaseHelper.TABLE_NAME, null);
                         if (!isPlaying) {
@@ -1793,7 +1865,7 @@ public class MainActivity extends AppCompatActivity {
                     break;
                 case SUCCESSBATCHFEATUREFILE:
                     if (msg.arg1==2 && mPersonInfoMap.size()>0){
-                        playVoiceTip.playVoice("get_persons_success");
+                        playVoiceTip.playVoice("get_persons_success", null);
                         updateLocalDatabase((List<ManageablePersonInfo>) msg.obj, msg.arg1);
                     }
                     break;
@@ -1804,7 +1876,7 @@ public class MainActivity extends AppCompatActivity {
                     strLog = "识别成功"+ " 欢迎您";
                     Log.i(mTAG, strLog);
                     LogFile.getInstance().saveMessage(strLog);
-                    playVoiceTip.playVoice("rec_success");
+                    playVoiceTip.playVoice("rec_success", null);
                     Toast.makeText(MainActivity.this, strLog, Toast.LENGTH_SHORT).show();
                     break;
                 case FINISHRECOGNIZER:
@@ -1862,7 +1934,7 @@ public class MainActivity extends AppCompatActivity {
                     stopPreviewFaceRec(true);
                     needUploadPersons();
                     strLog = "注册成功";
-                    playVoiceTip.playVoice("register_success");
+                    playVoiceTip.playVoice("register_success", null);
                     Toast.makeText(MainActivity.this, strLog, Toast.LENGTH_SHORT).show();
                     //延时后打开摄像窗口
                     runOnUiThread(new Runnable() {
@@ -1884,7 +1956,7 @@ public class MainActivity extends AppCompatActivity {
                     cameraViewContainer.setLayoutParams(layoutParams);
                     progressBar.setVisibility(View.GONE);
                     strLog = "注册未完成，请重新尝试";
-                    playVoiceTip.playVoice("register_unsuccess");
+                    playVoiceTip.playVoice("register_unsuccess", null);
                     Log.i(mTAG, strLog);
                     LogFile.getInstance().saveMessage(strLog);
                     Toast.makeText(MainActivity.this, strLog, Toast.LENGTH_SHORT).show();
@@ -1927,7 +1999,11 @@ public class MainActivity extends AppCompatActivity {
                     break;
                 case FAILDIALMOBILE:
                     Toast.makeText(MainActivity.this, "呼叫失败请重试", Toast.LENGTH_SHORT).show();
-                    TTSUtils.getInstance().speak("呼叫失败请重试");
+                    if (editText.getText().toString().length() == 4){
+                        playVoiceTip.playVoice("lock_callnum_error", null);
+                    }else {
+                        playVoiceTip.playVoice("lock_call_phone_errorr", null);
+                    }
                     editText.setText("");
                     break;
                 case SUCCESSLIVECHAT:
@@ -1942,7 +2018,7 @@ public class MainActivity extends AppCompatActivity {
                     if (msg.arg1 == 1){
                         TTSUtils.getInstance().speak("呼叫等待超时");
                     }else if (msg.arg1 == 2){
-                        playVoiceTip.playVoice("lock_video_hangup");
+                        playVoiceTip.playVoice("lock_video_hangup", null);
                     }
                     editText.setText("");
                     Toast.makeText(MainActivity.this, (String)msg.obj, Toast.LENGTH_SHORT).show();
@@ -1952,7 +2028,7 @@ public class MainActivity extends AppCompatActivity {
                     Toast.makeText(MainActivity.this, "通话还剩 "+msg.arg1+" 秒结束", Toast.LENGTH_SHORT).show();
                     break;
                 case SUCCESSREADCARD:
-                    strLog = playVoiceTip.playVoice("idcard_success");
+                    strLog = playVoiceTip.playVoice("idcard_success", null);
                     Log.i(mTAG, strLog);
                     LogFile.getInstance().saveMessage(strLog);
                     Toast.makeText(MainActivity.this, strLog, Toast.LENGTH_SHORT).show();
@@ -1965,7 +2041,7 @@ public class MainActivity extends AppCompatActivity {
                     }
                     break;
                 case FAILEDVERIFYCARD:
-                    strLog = playVoiceTip.playVoice("idcard_unauthorized");
+                    strLog = playVoiceTip.playVoice("idcard_unauthorized", null);
                     Toast.makeText(MainActivity.this, strLog, Toast.LENGTH_SHORT).show();
                     Log.i(mTAG, strLog);
                     LogFile.getInstance().saveMessage(strLog);
@@ -1983,14 +2059,14 @@ public class MainActivity extends AppCompatActivity {
                     break;
                 case IDCARDVERIFYWITHPERSON:
                     if (msg.arg1 == 1) {
-                        strLog = playVoiceTip.playVoice("register_begin");
+                        strLog = playVoiceTip.playVoice("register_begin", null);
                         layoutParams = (ConstraintLayout.LayoutParams) cameraViewContainer.getLayoutParams();
                         layoutParams.width = FrameLayout.LayoutParams.MATCH_PARENT;
                         layoutParams.height = FrameLayout.LayoutParams.MATCH_PARENT;
                         cameraViewContainer.setLayoutParams(layoutParams);
                         progressBar.bringToFront();
                     } else {
-                        playVoiceTip.playVoice("lock_idcheck_fail");
+                        playVoiceTip.playVoice("lock_idcheck_fail", null);
                         if (flagReadIdCard) {
                             runOnUiThread(new Runnable() {
                                 @Override
@@ -2008,7 +2084,7 @@ public class MainActivity extends AppCompatActivity {
                     break;
                 case OPENDOORWITHIDCARD:
                     openLockWithPulse();
-                    playVoiceTip.playVoice("lock_idcard_open");
+                    playVoiceTip.playVoice("lock_idcard_open", null);
                     break;
                 case OPENDOORBYREMOTE:
                     /** 在远程开门记录未上传前不允许再次调用 */
@@ -2019,7 +2095,11 @@ public class MainActivity extends AppCompatActivity {
                     }
                     capturePhoto();
                     openLockWithPulse();
-                    playVoiceTip.playVoice("lock_remote_open");
+                    if (msg.arg1 == 0) {
+                        playVoiceTip.playVoice("lock_remote_open", null);
+                    }else {
+                        playVoiceTip.playVoice("lock_video_open", null);
+                    }
                     Toast.makeText(MainActivity.this,"远程开门成功",Toast.LENGTH_LONG).show();
                     break;
                 case RECEIVEDTEMPPWD:
@@ -2033,7 +2113,7 @@ public class MainActivity extends AppCompatActivity {
                         flagOpenDoorPassword = true;
                     }
                     openLockWithPulse();
-                    playVoiceTip.playVoice("lock_tmppsw_open");
+                    playVoiceTip.playVoice("lock_tmppsw_open", null);
                     editText.setText("");
                     Toast.makeText(MainActivity.this,"密码开门成功",Toast.LENGTH_LONG).show();
                     break;
@@ -2045,6 +2125,7 @@ public class MainActivity extends AppCompatActivity {
                 case WRONGPASSWORD:
                     flagTryPassword = true;
                     editText.setText("");
+                    playVoiceTip.playVoice("lock_tmppsw_error", null);
                     Toast.makeText(MainActivity.this,"无效密码",Toast.LENGTH_LONG).show();
                     break;
                 case OFFLINEREMOTEUSER:
@@ -2062,7 +2143,7 @@ public class MainActivity extends AppCompatActivity {
     };
 
     private void rebootMachine(final int delay) {
-        playVoiceTip.playVoice("lock_reboot");
+        playVoiceTip.playVoice("lock_reboot", null);
         scheduledThread.execute(new Runnable() {
             @Override
             public void run() {
@@ -2366,14 +2447,16 @@ public class MainActivity extends AppCompatActivity {
         scheduledThread.execute(new Runnable() {
             @Override
             public void run() {
-                boolean flagToken = true;
+                byte[] flagToken = new byte[1];
+                flagToken[0] = 0;
+                Message msg = new Message();
                 String str = comBusiness.heartbeatMachine(flagToken);
                 //重新获取macId则重新更新广告和人员列表
-                if (str!=null && flagToken==false){
+                if (str!=null && flagToken[0]==1){
                     flagFirstRun = true;
-                    handler.sendEmptyMessage(SUCCESSSCOREPASS);
+                    handler.sendEmptyMessage(SUCCESSMACID);
                 }
-                str = "设备心跳返回服务器时间："+str + " flagToken:"+flagToken;
+                str = "设备心跳返回服务器时间："+str + " flagToken:"+flagToken[0];
                 Log.i(mTAG, str);
                 LogFile.getInstance().saveMessage(str);
             }
@@ -2441,8 +2524,9 @@ public class MainActivity extends AppCompatActivity {
                     LogFile.getInstance().saveMessage(str);
                     e.printStackTrace();
                 }
-                takePictureDataWithCamera1();
                 takePictureData();
+                takePictureDataWithCamera1();
+
                 flagReadIdCard = true;
                 readIDCard();
             }
@@ -2534,6 +2618,7 @@ public class MainActivity extends AppCompatActivity {
     public void takePictureData(){
         if (camera0 == null){
             Log.e(mTAG, "takePicture - camera0:"+camera0);
+            LogFile.getInstance().saveMessage("takePicture - camera0:"+camera0);
             return;
         }
         try{
@@ -2552,6 +2637,8 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
         }catch (Exception e){
+            Log.e(mTAG, "takePictureDataWithCamera0 error:"+e.toString());
+            LogFile.getInstance().saveMessage("takePictureDataWithCamera0 error:"+e.toString());
             e.printStackTrace();
         }
     }
@@ -2595,7 +2682,7 @@ public class MainActivity extends AppCompatActivity {
     public void callOwenr(String num){
         if (flagCallOwenr){
             Toast.makeText(this, "正在呼叫请等待", Toast.LENGTH_SHORT).show();
-            playVoiceTip.playVoice("lock_call");
+            playVoiceTip.playVoice("lock_call", null);
             return;
         }else {
             flagCallOwenr = true;
@@ -3061,7 +3148,7 @@ public class MainActivity extends AppCompatActivity {
                     if (networkInfo.getType() == ConnectivityManager.TYPE_ETHERNET
                             || networkInfo.getType() == ConnectivityManager.TYPE_WIFI){
                         isNetwork = true;
-                        playVoiceTip.playVoice("network_ok");
+                        playVoiceTip.playVoice("network_ok", null);
                         Toast.makeText(context, str, Toast.LENGTH_SHORT).show();
                         str = str + ":"+networkInfo.getType();
                         Log.i(TAG, str);
@@ -3072,7 +3159,7 @@ public class MainActivity extends AppCompatActivity {
             }else {
                 isNetwork = false;
                 str = "当前网络异常";
-                playVoiceTip.playVoice("network_disconnect");
+                playVoiceTip.playVoice("network_disconnect", null);
                 Toast.makeText(context, str, Toast.LENGTH_SHORT).show();
                 str = str + ":" + networkInfo;
                 Log.e(TAG, str);
@@ -3087,7 +3174,7 @@ public class MainActivity extends AppCompatActivity {
             public void run() {
                 connectServer();
             }
-        },20*1000, (long) (heartbeatTime*1000));
+        },30*1000, (long) (heartbeatTime*1000));
     }
     // 停止定时器
     private void stopTimer(){
@@ -3115,10 +3202,11 @@ public class MainActivity extends AppCompatActivity {
                 if (editText.getText().toString().equals("") && typeInput==0){
                     typeInput = 1;
                     inputTip.setText("请输入密码：");
+                    pwdTimeCount = 0;
                     Toast.makeText(this, "请输入密码", Toast.LENGTH_SHORT).show();
                 }else {
                     typeInput = 0;
-                    inputTip.setText("请输入房号：");
+                    inputTip.setText("请输入房号或手机号：");
                     Toast.makeText(this, "请输入房号", Toast.LENGTH_SHORT).show();
                 }
                 break;
