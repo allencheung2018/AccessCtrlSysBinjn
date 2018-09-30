@@ -8,3 +8,16 @@ The tablet is also customized which has tow camera(include infrared camere), rea
 * Video chat(thrid part online tool)
 * Reading ID card
 * Remote open door
+
+# Technology used
+* HTTP protocal
+* Switch Camera
+* Video and audio play backgroud
+* JSON operation
+* Interface
+* Broadcast
+* SQLiteDatabase
+* Thread pool
+* Float array
+* Log file
+* Date operation
